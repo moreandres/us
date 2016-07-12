@@ -1,1 +1,1 @@
-SUBDIRS=empty single error multi tps
+SUBDIRS=empty

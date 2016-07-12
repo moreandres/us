@@ -22,27 +22,3 @@
 #include <stdlib.h>
 #include <assert.h>
 #include "utils.h"
-
-char *timestamp(int size)
-{
-  assert(size >= 0);
-
-  char *buffer = calloc(size, sizeof(char));
-
-  assert(buffer);
-  
-  struct timeval tv;
-  time_t time;
-
-  int res = gettimeofday(&tv, NULL);
-  if (res)
-    error(EXIT_FAILURE, errno, "could not get time");
-  
-  time = tv.tv_sec;
-
-  int count = strftime(buffer, size, "%m%d%y-%H%M%S", localtime(&time));
-  if (count == 0)
-    error(EXIT_FAILURE, errno, "could not format timestamp");
-
-  return buffer;
-}

@@ -1,3 +1,4 @@
 bin_PROGRAMS = us
-us_SOURCES = utils.c args.c conf.c us.c
-AM_CPPFLAGS = -Wall -Wextra
+us_SOURCES = utils.c us.c
+us_LDADD = -lzlog -lpthread -lmicrohttpd
+us_CPPFLAGS = -Wall -Wextra

@@ -42,6 +42,6 @@ AC_FUNC_MALLOC
 AC_FUNC_REALLOC
 AC_CHECK_FUNCS([memset gettimeofday])
 
-AC_CONFIG_FILES([Makefile src/Makefile t/Makefile t/ut/Makefile t/st/Makefile t/st/empty/Makefile t/st/error/Makefile t/st/multi/Makefile t/st/single/Makefile t/st/tps/Makefile])
+AC_CONFIG_FILES([Makefile src/Makefile t/Makefile t/ut/Makefile t/st/Makefile t/st/empty/Makefile])
 
 AC_OUTPUT

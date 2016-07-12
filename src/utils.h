@@ -18,8 +18,6 @@
 #ifndef __UTILS_H__
 #define __UTILS_H__
 
-char *timestamp(int size);
-
 #define free(x) do { free(x); x = NULL; } while (0)
 
 #endif

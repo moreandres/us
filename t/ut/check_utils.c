@@ -20,18 +20,8 @@
 #include <check.h>
 #include "../../src/utils.h"
 
-START_TEST(test_free)
+START_TEST(test_utils)
 {
-  void *null = NULL;
-  ck_assert_msg(NULL == free(null), "free should handle NULL");
-  void *ptr = malloc(8);
-  ck_assert_msg(NULL == free(null), "free should set NULL");
-}
-END_TEST
-
-START_TEST(test_timestamp)
-{
-  
 }
 END_TEST
 
@@ -42,7 +32,7 @@ Suite * utils_suite(void)
 
     s = suite_create("utils");
     tc_core = tcase_create("core");
-    tcase_add_test(tc_core, test_timestamp);
+    tcase_add_test(tc_core, test_utils);
     suite_add_tcase(s, tc_core);
 
     return s;
