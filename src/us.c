@@ -47,14 +47,8 @@ void signal_handler(int signal)
 }
 
 // TODO: argument parsing
-// TODO: unit testing setup: check
-// TODO: system testing?
-// TODO: logging
-// TODO: JSON parsing
-// TODO: HTTPS server: GNU Libmicrohttpd
 // TODO: dynamic callbacks loader using dlopen
 // TODO: doxygen
-// TODO: checkpatch
 // TODO: valgrind
 // TODO: storage
 
@@ -63,13 +57,41 @@ void signal_handler(int signal)
 
 #define PORT 8888
 
-int answer_to_connection2(void *cls, struct MHD_Connection *connection, 
-                          const char *url, 
-                          const char *method, const char *version, 
-                          const char *upload_data, 
-                          size_t *upload_data_size, void **con_cls)
+int answer_to_connection(void *cls, struct MHD_Connection *connection, 
+			 const char *url, 
+			 const char *method, const char *version, 
+			 const char *upload_data, 
+			 size_t *upload_data_size, void **con_cls)
 {
-  const char *page  = "<html><body>Hello, browser!</body></html>";
+  WJElement doc = NULL;
+  WJElement person = NULL;
+
+  doc = WJEObject(NULL, NULL, WJE_NEW);
+  WJEString(doc, "name", WJE_SET, "Serenity");
+  WJEString(doc, "class", WJE_SET, "firefly");
+  WJEArray(doc, "crew", WJE_SET);
+
+  WJEObject(doc, "crew[$]", WJE_NEW);
+  WJEString(doc, "crew[-1].name", WJE_SET, "Malcolm Reynolds");
+  WJEString(doc, "crew[-1].job", WJE_SET, "captain");
+  WJEInt64(doc, "crew[-1].born", WJE_SET, 2468);
+
+  WJEObject(doc, "crew[$]", WJE_NEW);
+  WJEString(doc, "crew[-1].name", WJE_SET, "Kaywinnet Lee Fry");
+  WJEString(doc, "crew[-1].job", WJE_SET, "mechanic");
+  WJEInt64(doc, "crew[-1].born", WJE_SET, 2494);
+
+  WJEObject(doc, "crew[$]", WJE_NEW);
+  WJEString(doc, "crew[-1].name", WJE_SET, "Jayne Cobb");
+  WJEString(doc, "crew[-1].job", WJE_SET, "public relations");
+  WJEInt64(doc, "crew[-1].born", WJE_SET, 2485);
+
+  WJEBool(doc, "shiny", WJE_SET, TRUE);
+
+  WJEInt64(doc, "crew[].born == 2468", WJE_SET, 2486);  /* note: awesome! */
+  WJECloseDocument(WJEGet(doc, "shiny", NULL));
+      
+  const char *page = "<html><body>Hello, browser!</body></html>";
   struct MHD_Response *response;
   int ret;
 
@@ -78,6 +100,9 @@ int answer_to_connection2(void *cls, struct MHD_Connection *connection,
 					      MHD_RESPMEM_PERSISTENT);
   ret = MHD_queue_response (connection, MHD_HTTP_OK, response);
   MHD_destroy_response (response);
+
+  WJEDump(doc);
+  WJECloseDocument(doc);
   
   return ret;
 }
@@ -90,7 +115,7 @@ int print_out_key (void *cls, enum MHD_ValueKind kind,
 }
 
 static int 
-answer_to_connection (void *cls, struct MHD_Connection *connection, 
+answer_to_connection2 (void *cls, struct MHD_Connection *connection, 
                       const char *url, 
 		      const char *method, const char *version, 
 		      const char *upload_data, 
@@ -145,7 +170,8 @@ int main(int argc, char *argv[]) {
       printf ("The key/certificate files could not be read.\n");
       return 1;
     }
-  
+
+  /*
   daemon = MHD_start_daemon (MHD_USE_SELECT_INTERNALLY | MHD_USE_SSL,
 			     PORT, NULL, NULL, 
                              &answer_to_connection, NULL,
@@ -158,6 +184,13 @@ int main(int argc, char *argv[]) {
     free (cert_pem);
     return 1;
   }
+  */
+  daemon = MHD_start_daemon (MHD_USE_SELECT_INTERNALLY,
+			     PORT, NULL, NULL, 
+                             &answer_to_connection, NULL,
+			     MHD_OPTION_END);
+  if (NULL == daemon) return 1;
+  
   getchar (); 
 
   MHD_stop_daemon (daemon);

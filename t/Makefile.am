@@ -1,1 +1,1 @@
-SUBDIRS=ut st
+SUBDIRS=ut st qa
