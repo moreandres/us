@@ -20,36 +20,42 @@
 #include <check.h>
 #include "../../src/us.h"
 
-START_TEST(test_us)
+START_TEST(test_signal_handler_valid)
 {
+  signal_handler(1);
+}
+END_TEST
+
+START_TEST(test_signal_handler_invalid)
+{
+  signal_handler(-1);
 }
 END_TEST
 
 Suite * us_suite(void)
 {
-    Suite *s;
-    TCase *tc_core;
+	Suite *s = suite_create("us");
+	TCase *tc_signal_handler = tcase_create("signal_handler");
 
-    s = suite_create("us");
-    tc_core = tcase_create("core");
-    tcase_add_test(tc_core, test_us);
-    suite_add_tcase(s, tc_core);
+	tcase_add_test(tc_signal_handler, test_signal_handler_valid);
+	tcase_add_test(tc_signal_handler, test_signal_handler_invalid);
+	suite_add_tcase(s, tc_signal_handler);
 
-    return s;
+	return s;
 }
 
 int main(void)
 {
-  int number_failed;
-  Suite *s;
-  SRunner *sr;
-  
-  s = us_suite();
-  sr = srunner_create(s);
-  
-  srunner_run_all(sr, CK_NORMAL);
-  number_failed = srunner_ntests_failed(sr);
-  srunner_free(sr);
+	int number_failed;
+	Suite *s;
+	SRunner *sr;
 
-  return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
+	s = us_suite();
+	sr = srunner_create(s);
+
+	srunner_run_all(sr, CK_NORMAL);
+	number_failed = srunner_ntests_failed(sr);
+	srunner_free(sr);
+
+	return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }

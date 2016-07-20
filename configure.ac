@@ -18,7 +18,6 @@ AC_PROG_MAKE_SET
 AC_PROG_RANLIB
 
 # Checks for libraries.
-PKG_CHECK_MODULES([check], [check >= 0.9.4])
 
 # Checks for header files.
 AC_CHECK_HEADERS([stddef.h])
@@ -46,7 +45,7 @@ AC_SEARCH_LIBS(zlog_init, zlog, [], AC_MSG_ERROR([missing zlog_init]))
 AC_SEARCH_LIBS(pthread_create, pthread, [], AC_MSG_ERROR([missing pthread_create]))
 AC_SEARCH_LIBS(MHD_start_daemon, microhttpd, [], AC_MSG_ERROR([missing MHD_start_daemon]))
 AC_SEARCH_LIBS(WJEObjectF, wjelement, [], AC_MSG_ERROR([missing WJEObject]))
-AC_SEARCH_LIBS(suite_create, check, [], AC_MSG_ERROR([missing check]))
+AC_SEARCH_LIBS(criterion_register_test, criterion, [], AC_MSG_ERROR([missing criterion]))
 
 AC_CONFIG_FILES([Makefile src/Makefile t/Makefile t/ut/Makefile t/st/Makefile t/st/empty/Makefile t/qa/Makefile])
 
