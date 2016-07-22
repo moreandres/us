@@ -64,6 +64,100 @@ void signal_handler(int signal)
 /* service/resource/get/request.json */
 /* service/resource/get/response.json */
 
+typedef struct method {
+  const char *name;
+  WJElement *request;
+  WJElement *response;
+  UT_hash_handle hh;
+} method_t;
+
+typedef struct resource {
+  const char *name;
+  method_t *methods;
+  UT_hash_handle hh;
+} resource_t;
+
+typedef struct service {
+  resource_t *resources;
+} service_t;
+
+service_t *service_create()
+{
+  service_t *service = NULL;
+  return service;
+}
+
+resource_t *resource_create()
+{
+  resource_t *resource = NULL;
+  return resource;
+}
+
+WJElement *document_load(char *path)
+{
+  WJElement *element = NULL;
+  return element;
+}
+
+method_t *method_create(char* path)
+{
+  method_t *method = (method_t *) calloc(1, sizeof(method_t));
+  method->name = strdup(basename(path));
+  method->request = document_load("request.json");
+  method->response = document_load("response.json");
+  return method;
+}
+
+void method_destroy(method_t *method)
+{
+  free(method->name);
+  WJECloseDocument(method->request);
+  WJECloseDocument(method->response);
+  free(method);
+}
+
+void resource_destroy(resource_t *resource)
+{
+  method_t *method = NULL;
+  method_t *tmp = NULL;
+  method_t *methods = resource->methods;
+  
+  HASH_ITER(hh, methods, method, tmp) {
+    HASH_DEL(methods, method);
+    method_destroy(method);
+  }
+  
+  free(resource);
+}
+
+void service_destroy(service_t * service)
+{
+  resource_t *resource = NULL;
+  resource_t *tmp = NULL;
+  resource_t *resources = service->resources;
+  
+  HASH_ITER(hh, resources, resource, tmp) {
+    HASH_DEL(resources, resource);
+    resource_destroy(resource);
+  }
+  
+  free(service);
+}
+
+int load_service()
+{
+  int res = 0;
+  
+  service_t *service = service_create("service");
+  resource_t *resources = NULL;
+  resource_t *resource = resource_create("resource");
+  method_t *method = method_create("get");
+
+  service_destroy(service);
+
+  return res;
+}
+
 /*
   load_service(); load_resources(); load_schema(); load_json(); load_file();
  */
