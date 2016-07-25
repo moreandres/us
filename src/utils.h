@@ -20,6 +20,4 @@
 
 #include "uthash.h"
 
-int utils_test(void);
-
 #endif
