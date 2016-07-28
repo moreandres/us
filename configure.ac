@@ -41,9 +41,9 @@ AC_FUNC_MALLOC
 AC_FUNC_REALLOC
 AC_CHECK_FUNCS([memset gettimeofday])
 
-AC_SEARCH_LIBS(zlog_init, zlog, [], AC_MSG_ERROR([missing zlog_init]))
 AC_SEARCH_LIBS(pthread_create, pthread, [], AC_MSG_ERROR([missing pthread_create]))
 AC_SEARCH_LIBS(MHD_start_daemon, microhttpd, [], AC_MSG_ERROR([missing MHD_start_daemon]))
+AC_SEARCH_LIBS(WJRCloseDocument, wjreader, [], AC_MSG_ERROR([missing WJRCloseDocument]))
 AC_SEARCH_LIBS(WJEObjectF, wjelement, [], AC_MSG_ERROR([missing WJEObject]))
 AC_SEARCH_LIBS(criterion_register_test, criterion, [], AC_MSG_ERROR([missing criterion]))
 

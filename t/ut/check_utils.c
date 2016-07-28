@@ -16,9 +16,24 @@
 */
 
 #include <config.h>
-#include "utils.h"
 #include <criterion/criterion.h>
+#include <unistd.h>
+#include "utils.h"
 
-Test(suite_name, test_name) {
-  cr_assert(utils_test() == 42, "returns 42?");
+Test(stamp, epoch1)
+{
+	cr_assert(stamp() > 0, "stamp returns greater than zero");
 }
+
+Test(stamp, epoch2)
+{
+	double begin = stamp();
+	sleep(1);
+	double end = stamp();
+		
+	cr_assert(end - begin > 0, "stamps diff is greater than zero");
+}
+
+// LOG shows something in stderr
+
+// signal handler handles

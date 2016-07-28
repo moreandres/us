@@ -42,20 +42,15 @@
 
 #include <microhttpd.h>
 #include <wjelement.h>
-#include <zlog.h>
+#include <wjreader.h>
 
 #include <config.h>
+#include "uthash.h"
 #include "utils.h"
 
-#define LOG(level, fmt, args...) do {			\
-    printf("%s:%d:%s", __FILE__, __LINE__, __func__);	\
-    printf(fmt, ## args); printf("\n"); } while (0)
-
-#define LOG_TRACE 1
-
-void signal_handler(int signal)
+void signal_handler(const int signal)
 {
-  LOG(LOG_TRACE, "%d", signal);
+	LOG("%d", signal);
 }
 
 /* TODO: argument parsing */
@@ -68,156 +63,172 @@ void signal_handler(int signal)
 /* service/resource/get/response.json */
 
 typedef struct method {
-  char *name;
-  WJElement request;
-  WJElement response;
-  UT_hash_handle hh;
+	char *name;
+	WJElement request;
+	WJElement response;
+	UT_hash_handle hh;
 } method_t;
 
 typedef struct resource {
-  char *name;
-  method_t *methods;
-  UT_hash_handle hh;
+	char *name;
+	method_t *methods;
+	UT_hash_handle hh;
 } resource_t;
 
 typedef struct service {
-  char *name;
-  resource_t *resources;
+	char *name;
+	resource_t *resources;
 } service_t;
 
-service_t *service_create(const char *path)
+WJElement document_create(char *path)
 {
-  service_t *service = calloc(1, sizeof(service_t));
-  if (service) {
-    service->name = strdup(basename(path));
-    if (service->name) {
-      DIR *dir = opendir(path);
-      if (dir) {
-	int res = -1;
-	struct dirent *tmp = NULL;
-	while (tmp = readdir(dir))
-	  res = resource_create(strncat(path, tmp->d_name));
-	
-	res = closedir(dir);
-      }
-    }
-  }
-  
-  return service;
+	WJElement element = NULL;
+	WJReader reader = NULL;
+	FILE *file = fopen(path, "r");
+
+	if (file) {
+		reader = WJROpenFILEDocument(file, NULL, 0);
+		if (reader)
+			element = WJEOpenDocument(reader, NULL, NULL, NULL);
+	}
+	return element;
 }
 
 method_t *method_create(char *path)
 {
-  int res = -1;
-  method_t *method = (method_t *) calloc(1, sizeof(method_t));
-  if (method) {
-    method->name = strdup(basename(path));
-    if (method->name) {
-      char *string = NULL;
+	int res = -1;
+	method_t *method = (method_t *) calloc(1, sizeof(method_t));
 
-      res = asprintf(&string, "%s/request.json", path);
-      assert(res);
-      method->request = document_create(string);
-      free(string);
-      
-      res = asprintf(&string, "%s/response.json", path);
-      method->response = document_create(string);
-      free(string);
-    }
-  }
-  return method;
-}
+	if (method) {
+		method->name = strdup(basename(path));
+		if (method->name) {
+			char *string = NULL;
 
-WJElement document_create(char *path)
-{
-  WJElement element = NULL;
-  WJReader reader = NULL;
-  FILE *file = fopen(path, "r");
-  if (file) {
-    reader = WJROpenFILEDocument(file, NULL, 0);
-    if (reader)
-      element = WJEOpenDocument(reader, NULL, NULL, NULL);
-  }
-  return element;
+			res = asprintf(&string, "%s/request.json", path);
+			assert(res);
+			method->request = document_create(string);
+			free(string);
+
+			res = asprintf(&string, "%s/response.json", path);
+			method->response = document_create(string);
+			free(string);
+		}
+	}
+	return method;
 }
 
 resource_t *resource_create(const char *path)
 {
-  resource_t *resource = calloc(1, sizeof(resource_t));
-  if (resource) {
-    resource->name = strdup(basename(path));
-    if (resource->name) {
-      DIR *dir = opendir(path);
-      if (dir) {
+	resource_t *resource = calloc(1, sizeof(resource_t));
 
-	int res = -1;
-	struct dirent *tmp = NULL;
-	while (tmp = readdir(dir)) {
-	  char *string = NULL;
-	  
-	  res = asprintf(&string, "%s/%s", path, tmp->d_name);
-	  assert(res);
-	  method_t *method = method_create(string);
-	  HASH_ADD_KEYPTR(hh, resource->methods,
-			  method->name, strlen(method->name), method);
-	  free(string);
-	  
+	if (resource) {
+		resource->name = strdup(basename(path));
+		if (resource->name) {
+			DIR *dir = opendir(path);
+
+			if (dir) {
+
+				int res = -1;
+				struct dirent *tmp = NULL;
+
+				while ((tmp = readdir(dir))) {
+					char *string = NULL;
+
+					res =
+					    asprintf(&string, "%s/%s", path,
+						     tmp->d_name);
+					assert(res);
+					method_t *method =
+					    method_create(string);
+
+					HASH_ADD_KEYPTR(hh, resource->methods,
+							method->name,
+							strlen(method->name),
+							method);
+					free(string);
+
+				}
+				closedir(dir);
+			}
+		}
 	}
-	closedir(dir);
-      }
-    }
-  }
-  
-  return resource;
+
+	return resource;
 }
 
+service_t *service_create(const char *path)
+{
+	service_t *service = calloc(1, sizeof(service_t));
 
+	if (service) {
+		service->name = strdup(basename(path));
+		if (service->name) {
+			DIR *dir = opendir(path);
+
+			if (dir) {
+				int res = -1;
+				struct dirent *tmp = NULL;
+
+				while ((tmp = readdir(dir))) {
+
+					char *string = NULL;
+
+					res =
+					    asprintf(&string, "%s/%s", path,
+						     tmp->d_name);
+					assert(res);
+
+					resource_t *resource =
+					    resource_create(string);
+
+					HASH_ADD_KEYPTR(hh, service->resources,
+							resource->name,
+							strlen(resource->name),
+							resource);
+					free(string);
+				}
+				res = closedir(dir);
+			}
+		}
+	}
+
+	return service;
+}
 
 void method_destroy(method_t *method)
 {
-  WJECloseDocument(method->request);
-  WJECloseDocument(method->response);
-  free(method->name);
-  free(method);
+	WJECloseDocument(method->request);
+	WJECloseDocument(method->response);
+	free(method->name);
+	free(method);
 }
 
 void resource_destroy(resource_t *resource)
 {
-  method_t *method = NULL;
-  method_t *tmp = NULL;
-  method_t *methods = resource->methods;
-  
-  HASH_ITER(hh, methods, method, tmp) {
-    HASH_DEL(methods, method);
-    method_destroy(method);
-  }
-  
-  free(resource);
+	method_t *method = NULL;
+	method_t *tmp = NULL;
+	method_t *methods = resource->methods;
+
+	HASH_ITER(hh, methods, method, tmp) {
+		HASH_DEL(methods, method);
+		method_destroy(method);
+	}
+
+	free(resource);
 }
 
-void service_destroy(service_t * service)
+void service_destroy(service_t *service)
 {
-  resource_t *resource = NULL;
-  resource_t *tmp = NULL;
-  resource_t *resources = service->resources;
-  
-  HASH_ITER(hh, resources, resource, tmp) {
-    HASH_DEL(resources, resource);
-    resource_destroy(resource);
-  }
-  
-  free(service);
-}
+	resource_t *resource = NULL;
+	resource_t *tmp = NULL;
+	resource_t *resources = service->resources;
 
-int load_service()
-{
-  int res = 0;
-  
-  service_t *service = service_create(".");
+	HASH_ITER(hh, resources, resource, tmp) {
+		HASH_DEL(resources, resource);
+		resource_destroy(resource);
+	}
 
-  service_destroy(service);
-
-  return res;
+	free(service);
 }
 
 /*
@@ -228,85 +239,253 @@ int load_service()
   [ resource, request schema, response schema, stats (count, avg latency, error rate) ]
 */
 
-#define PORT 8888
-
 /* handle health -> OK, stats; log_stats() */
 
-int answer_to_connection(void *cls, struct MHD_Connection *connection,
-			 const char *url,
-			 const char *method, const char *version,
-			 const char *upload_data,
-			 size_t *upload_data_size, void **con_cls)
+/*
+  handle_connection -> parse_request -> validate_request -> validate_method -> process_request -> handle_get handle_post handle_delete handle_put handle_patch -> handle_options -> handle_head -> handle_other
+ */
+
+#define PORT 8888
+
+#define REALM     "\"Maintenance\""
+#define USER      "a legitimate user"
+#define PASSWORD  "and his password"
+
+#define SERVERKEYFILE "server.key"
+#define SERVERCERTFILE "server.pem"
+
+static char *string_to_base64(const char *message)
 {
-  LOG(LOG_TRACE, "%s %s %s %s %ld", url, method, version, upload_data, *upload_data_size);
+	const char *lookup =
+	    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+	unsigned long l;
+	int i;
+	char *tmp;
+	size_t length = strlen(message);
 
-  assert(cls);
-  assert(con_cls);
-  
-	const char *page = "<html><body>Hello, browser!</body></html>";
-	struct MHD_Response *response;
+	tmp = malloc(length * 2);
+	if (tmp == NULL)
+		return tmp;
+
+	tmp[0] = 0;
+
+	for (i = 0; i < length; i += 3) {
+		l = (((unsigned long)message[i]) << 16)
+		    | (((i + 1) < length)
+		       ? (((unsigned long)message[i + 1]) << 8) : 0)
+		    | (((i + 2) < length) ? ((unsigned long)message[i + 2]) :
+		       0);
+
+		strncat(tmp, &lookup[(l >> 18) & 0x3F], 1);
+		strncat(tmp, &lookup[(l >> 12) & 0x3F], 1);
+
+		if (i + 1 < length)
+			strncat(tmp, &lookup[(l >> 6) & 0x3F], 1);
+		if (i + 2 < length)
+			strncat(tmp, &lookup[l & 0x3F], 1);
+	}
+
+	if (length % 3)
+		strncat(tmp, "===", 3 - length % 3);
+
+	return tmp;
+}
+
+static long get_file_size(const char *filename)
+{
+	FILE *fp;
+
+	fp = fopen(filename, "rb");
+	if (fp) {
+		long size;
+
+		if ((fseek(fp, 0, SEEK_END) != 0) || (-1 == (size = ftell(fp))))
+			size = 0;
+
+		fclose(fp);
+
+		return size;
+	} else
+		return 0;
+}
+
+static char *load_file(const char *filename)
+{
+	FILE *fp;
+	char *buffer;
+	long size;
+
+	size = get_file_size(filename);
+	if (size == 0)
+		return NULL;
+
+	fp = fopen(filename, "rb");
+	if (!fp)
+		return NULL;
+
+	buffer = malloc(size);
+	if (!buffer) {
+		fclose(fp);
+		return NULL;
+	}
+
+	if (size != fread(buffer, 1, size, fp)) {
+		free(buffer);
+		buffer = NULL;
+	}
+
+	fclose(fp);
+	return buffer;
+}
+
+static int
+ask_for_authentication(struct MHD_Connection *connection, const char *realm)
+{
 	int ret;
+	struct MHD_Response *response;
+	char *headervalue;
+	const char *strbase = "Basic realm=";
 
-	response = MHD_create_response_from_buffer(strlen(page),
-						   (void *)page,
+	response = MHD_create_response_from_buffer(0, NULL,
 						   MHD_RESPMEM_PERSISTENT);
+	if (!response)
+		return MHD_NO;
+
+	headervalue = malloc(strlen(strbase) + strlen(realm) + 1);
+	if (!headervalue)
+		return MHD_NO;
+
+	strcpy(headervalue, strbase);
+	strcat(headervalue, realm);
+
+	ret =
+	    MHD_add_response_header(response, "WWW-Authenticate", headervalue);
+	free(headervalue);
+	if (!ret) {
+		MHD_destroy_response(response);
+		return MHD_NO;
+	}
+
+	ret = MHD_queue_response(connection, MHD_HTTP_UNAUTHORIZED, response);
+
+	MHD_destroy_response(response);
+
+	return ret;
+}
+
+static int
+is_authenticated(struct MHD_Connection *connection,
+		 const char *username, const char *password)
+{
+	const char *headervalue;
+	char *expected_b64, *expected;
+	const char *strbase = "Basic ";
+	int authenticated;
+
+	headervalue =
+	    MHD_lookup_connection_value(connection, MHD_HEADER_KIND,
+					"Authorization");
+	if (headervalue == NULL)
+		return 0;
+	if (strncmp(headervalue, strbase, strlen(strbase)) != 0)
+		return 0;
+
+	expected = malloc(strlen(username) + 1 + strlen(password) + 1);
+	if (expected == NULL)
+		return 0;
+
+	strcpy(expected, username);
+	strcat(expected, ":");
+	strcat(expected, password);
+
+	expected_b64 = string_to_base64(expected);
+	free(expected);
+	if (expected_b64 == NULL)
+		return 0;
+
+	authenticated =
+	    (strcmp(headervalue + strlen(strbase), expected_b64) == 0);
+
+	free(expected_b64);
+
+	return authenticated;
+}
+
+static int secret_page(struct MHD_Connection *connection)
+{
+	int ret;
+	struct MHD_Response *response;
+	const char *page = "<html><body>A secret.</body></html>";
+
+	response =
+	    MHD_create_response_from_buffer(strlen(page), (void *)page,
+					    MHD_RESPMEM_PERSISTENT);
+	if (!response)
+		return MHD_NO;
+
 	ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
 	MHD_destroy_response(response);
 
 	return ret;
 }
 
-/*
-  handle_connection -> parse_request -> validate_request -> validate_method -> process_request -> handle_get handle_post handle_delete handle_put handle_patch -> handle_options -> handle_head -> handle_other
- */
-
-#define SERVERKEYFILE "/etc/server.key"
-#define SERVERCERTFILE "/etc/server.crt"
-
-int main(int argc, char *argv[])
+static int
+answer_to_connection(void *cls, struct MHD_Connection *connection,
+		     const char *url, const char *method,
+		     const char *version, const char *upload_data,
+		     size_t *upload_data_size, void **con_cls)
 {
+	if (0 != strcmp(method, "GET"))
+		return MHD_NO;
+	if (*con_cls == NULL) {
+		*con_cls = connection;
+		return MHD_YES;
+	}
 
-	assert(argc >= 0);
-	assert(argv != NULL);
+	if (!is_authenticated(connection, USER, PASSWORD))
+		return ask_for_authentication(connection, REALM);
+
+	return secret_page(connection);
+}
+
+int main(void)
+{
+	service_t *service = service_create(".");
+
+	service_destroy(service);
 
 	struct MHD_Daemon *daemon;
-
 	char *key_pem;
 	char *cert_pem;
 
-	key_pem = (SERVERKEYFILE);
-	cert_pem = (SERVERCERTFILE);
+	key_pem = load_file(SERVERKEYFILE);
+	cert_pem = load_file(SERVERCERTFILE);
 
 	if ((key_pem == NULL) || (cert_pem == NULL)) {
-		printf("The key/certificate files could not be read.\n");
+		LOG("The key/certificate files could not be read");
 		return 1;
 	}
 
-	/*
-	   daemon = MHD_start_daemon (MHD_USE_SELECT_INTERNALLY | MHD_USE_SSL,
-	   PORT, NULL, NULL,
-	   &answer_to_connection, NULL,
-	   MHD_OPTION_HTTPS_MEM_KEY, key_pem,
-	   MHD_OPTION_HTTPS_MEM_CERT, cert_pem,
-	   MHD_OPTION_END);
-	   if (NULL == daemon) {
-	   printf("%s\n", cert_pem);
-	   free (key_pem);
-	   free (cert_pem);
-	   return 1;
-	   }
-	 */
-	daemon = MHD_start_daemon(MHD_USE_SELECT_INTERNALLY,
-				  PORT, NULL, NULL,
-				  &answer_to_connection, NULL, MHD_OPTION_END);
-	if (daemon == NULL)
+	daemon =
+	    MHD_start_daemon(MHD_USE_SELECT_INTERNALLY | MHD_USE_SSL, PORT,
+			     NULL, NULL, &answer_to_connection, NULL,
+			     MHD_OPTION_HTTPS_MEM_KEY, key_pem,
+			     MHD_OPTION_HTTPS_MEM_CERT, cert_pem,
+			     MHD_OPTION_END);
+	if (daemon == NULL) {
+		printf("%s\n", cert_pem);
+
+		free(key_pem);
+		free(cert_pem);
+
 		return 1;
+	}
 
 	getchar();
 
 	MHD_stop_daemon(daemon);
+	free(key_pem);
+	free(cert_pem);
 
-	zlog_fini();
-
-	return EXIT_SUCCESS;
+	return 0;
 }

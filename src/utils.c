@@ -18,12 +18,15 @@
 #include <errno.h>
 #include <error.h>
 #include <sys/time.h>
-#include <unistd.h>
 #include <stdlib.h>
 #include <assert.h>
 #include "utils.h"
 
-int utils_test(void)
+double stamp(void)
 {
-  return 42;
+	struct timeval tv;
+
+	gettimeofday(&tv, NULL);
+
+	return (tv.tv_sec + tv.tv_usec / 1000000.0);
 }

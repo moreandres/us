@@ -18,6 +18,8 @@
 #ifndef __US_H__
 #define __US_H__
 
-void signal_handler(int signal);
+void signal_handler(const int signal);
+
+service_t *service_create(const char *path);
 
 #endif

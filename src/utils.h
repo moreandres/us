@@ -18,6 +18,18 @@
 #ifndef __UTILS_H__
 #define __UTILS_H__
 
-#include "uthash.h"
+double stamp(void);
+
+#include <stdio.h>
+#include <errno.h>
+
+#define LOG(fmt, args...)						\
+	do {								\
+		printf("[%f] ", stamp());				\
+		printf(fmt, ## args);					\
+		printf(". %s. ", strerror(errno));			\
+		printf("%s:%d:%s() ", __FILE__, __LINE__, __func__);	\
+		printf("\n");						\
+	} while (0)
 
 #endif
