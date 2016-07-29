@@ -117,80 +117,132 @@ method_t *method_create(char *path)
 	return method;
 }
 
+int resource_read(resource_t *resource, DIR *dir)
+{
+	struct dirent *tmp = NULL;
+
+	while ((tmp = readdir(dir))) {
+		char *string = NULL;
+
+		int res =
+			asprintf(&string, "%s/%s",
+				 resource->name, tmp->d_name);
+		assert(res);
+		method_t *method =
+			method_create(string);
+
+		HASH_ADD_KEYPTR(hh, resource->methods,
+				method->name,
+				strlen(method->name),
+				method);
+		free(string);
+
+	}
+
+	return EXIT_SUCCESS;
+}
+
 resource_t *resource_create(const char *path)
 {
+	LOG("creating resource %s", path);
+	
 	resource_t *resource = calloc(1, sizeof(resource_t));
-
-	if (resource) {
-		resource->name = strdup(basename(path));
-		if (resource->name) {
-			DIR *dir = opendir(path);
-
-			if (dir) {
-
-				int res = -1;
-				struct dirent *tmp = NULL;
-
-				while ((tmp = readdir(dir))) {
-					char *string = NULL;
-
-					res =
-					    asprintf(&string, "%s/%s", path,
-						     tmp->d_name);
-					assert(res);
-					method_t *method =
-					    method_create(string);
-
-					HASH_ADD_KEYPTR(hh, resource->methods,
-							method->name,
-							strlen(method->name),
-							method);
-					free(string);
-
-				}
-				closedir(dir);
-			}
-		}
+	if (!resource) {
+		LOG("could not allocate resource %p", path);
+		return NULL;
 	}
+	
+	resource->name = strdup(basename(path));
+	if (!resource->name) {
+		LOG("could not allocate resource name");
+		free(resource);
+		return NULL;
+	}
+	
+	DIR *dir = opendir(path);
+	if (!dir) {
+		LOG("could not open dir %p", path);
+		free(resource->name);
+		free(resource);
+		return NULL;
+	}
+	
+	int res = resource_read(resource, dir);
+	if (!res)
+		LOG("could not read resource");
+		
+	res = closedir(dir);
+	if (!res)
+		LOG("could not close dir");
 
 	return resource;
 }
 
+int service_read(service_t *service, DIR *dir)
+{
+	LOG("reading service");
+	
+	int res = EXIT_FAILURE;
+
+	struct dirent *tmp = NULL;
+	while ((tmp = readdir(dir))) {
+				
+		char *string = NULL;
+		res = asprintf(&string, "%s/%s", service->name, tmp->d_name);
+		if (res) {
+			LOG("could not allocate resource name");
+			return ENOMEM;
+		}
+		
+		LOG("reading resource %s", string);
+		
+		resource_t *resource = resource_create(string);
+		if (!resource) {
+			LOG("could not create resource %s", string);
+			free(string);
+			return EINVAL;
+		}
+		free(string);
+
+		HASH_ADD_KEYPTR(hh, service->resources,
+				resource->name,
+				strlen(resource->name),
+				resource);
+	}
+
+	return EXIT_SUCCESS;
+}
+
 service_t *service_create(const char *path)
 {
+	LOG("creating service %p", path);
+	
 	service_t *service = calloc(1, sizeof(service_t));
-
-	if (service) {
-		service->name = strdup(basename(path));
-		if (service->name) {
-			DIR *dir = opendir(path);
-
-			if (dir) {
-				int res = -1;
-				struct dirent *tmp = NULL;
-
-				while ((tmp = readdir(dir))) {
-
-					char *string = NULL;
-
-					res =
-					    asprintf(&string, "%s/%s", path,
-						     tmp->d_name);
-					assert(res);
-
-					resource_t *resource =
-					    resource_create(string);
-
-					HASH_ADD_KEYPTR(hh, service->resources,
-							resource->name,
-							strlen(resource->name),
-							resource);
-					free(string);
-				}
-				res = closedir(dir);
-			}
-		}
+	if (!service) {
+		LOG("could not allocate memory for service");
+		return NULL;
 	}
+	
+	service->name = strdup(basename(path));
+	if (!service->name) {
+		LOG("could not allocate memory for service name");
+		free(service);
+		return NULL;
+	}
+		
+	DIR *dir = opendir(path);
+	if (!dir) {
+		LOG("could not open dir %p", path);
+		free(service->name);
+		free(service);
+		return NULL;
+	}
+
+	int res = service_read(service, dir);
+	
+	res = closedir(dir);
+	if (res)
+		LOG("could not close dir %p", path);
 
 	return service;
 }
@@ -448,11 +500,11 @@ answer_to_connection(void *cls, struct MHD_Connection *connection,
 	return secret_page(connection);
 }
 
-int main(void)
+int main(int argc, char *argv[])
 {
+	LOG("%d, %p", argc, argv);
+	
 	service_t *service = service_create(".");
-
-	service_destroy(service);
 
 	struct MHD_Daemon *daemon;
 	char *key_pem;
@@ -486,6 +538,8 @@ int main(void)
 	MHD_stop_daemon(daemon);
 	free(key_pem);
 	free(cert_pem);
+
+	service_destroy(service);
 
 	return 0;
 }
