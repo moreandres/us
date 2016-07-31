@@ -82,61 +82,136 @@ typedef struct service {
 
 WJElement document_create(char *path)
 {
+	LOG("creating document %p", path);
+	
 	WJElement element = NULL;
 	WJReader reader = NULL;
 	FILE *file = fopen(path, "r");
-
-	if (file) {
-		reader = WJROpenFILEDocument(file, NULL, 0);
-		if (reader)
-			element = WJEOpenDocument(reader, NULL, NULL, NULL);
+	if (!file) {
+		LOG("could not open file %p", path);
+		return NULL;
 	}
+
+	reader = WJROpenFILEDocument(file, NULL, 0);
+	if (!reader) {
+		LOG("could not create file reader");
+		int res = fclose(file);
+		if (!res)
+			LOG("could not close file");
+		return NULL;
+	}
+
+	element = WJEOpenDocument(reader, NULL, NULL, NULL);
+	XplBool bool = WJRCloseDocument(reader);
+	if (!bool)
+		LOG("could not close file reader");
+	int res = fclose(file);
+	if (!res)
+		LOG("could not close file");
+
+	if (!element) {
+		LOG("could not read element");
+		return NULL;
+	}
+
+	WJEDump(element);
+	
 	return element;
+}
+
+int method_read(method_t *method, char *path)
+{
+	LOG("reading method");
+	
+	char *string = NULL;
+
+	int res = -1;
+
+	res = asprintf(&string, "%s/request.json", path);
+	if (!res) {
+		LOG("could not allocate request path");
+		return ENOMEM;
+	}
+	
+	method->request = document_create(string);
+	free(string);
+	if (!method->request) {
+		LOG("could not create request document");
+		return EINVAL;
+	}
+	
+	res = asprintf(&string, "%s/response.json", path);
+	if (!res) {
+		LOG("could not allocate response path");
+		return ENOMEM;
+	}
+	
+	method->response = document_create(string);
+	free(string);
+	if (!method->request) {
+		LOG("could not create request document");
+		return EINVAL;
+	}
+
+	return EXIT_SUCCESS;
 }
 
 method_t *method_create(char *path)
 {
-	int res = -1;
+	LOG("creating method %s", path);
+	
 	method_t *method = (method_t *) calloc(1, sizeof(method_t));
-
-	if (method) {
-		method->name = strdup(basename(path));
-		if (method->name) {
-			char *string = NULL;
-
-			res = asprintf(&string, "%s/request.json", path);
-			assert(res);
-			method->request = document_create(string);
-			free(string);
-
-			res = asprintf(&string, "%s/response.json", path);
-			method->response = document_create(string);
-			free(string);
-		}
+	if (!method) {
+		LOG("could not allocate method");
+		return NULL;
 	}
+
+	method->name = strdup(basename(path));
+	if (!method->name) {
+		LOG("could not allocate method name");
+		free(method);
+		return NULL;
+	}
+
+	int res = method_read(method, path);
+	if (!res) {
+		LOG("could not read method");
+		free(method->name);
+		free(method);
+		return NULL;
+	}
+	
 	return method;
 }
 
 int resource_read(resource_t *resource, DIR *dir)
 {
+	LOG("reading resource %p %p", resource, dir);
+	
 	struct dirent *tmp = NULL;
 
 	while ((tmp = readdir(dir))) {
+
 		char *string = NULL;
 
 		int res =
 			asprintf(&string, "%s/%s",
 				 resource->name, tmp->d_name);
-		assert(res);
-		method_t *method =
-			method_create(string);
-
+		if (!res) {
+			LOG("could not allocate method name");
+			return ENOMEM;
+		}
+		method_t *method = method_create(string);
+		if (!method) {
+			LOG("could not create method %s", string);
+			free(string);
+			return EINVAL;
+		}
+		
 		HASH_ADD_KEYPTR(hh, resource->methods,
 				method->name,
 				strlen(method->name),
 				method);
-		free(string);
-
 	}
 
 	return EXIT_SUCCESS;
@@ -145,32 +220,35 @@ int resource_read(resource_t *resource, DIR *dir)
 resource_t *resource_create(const char *path)
 {
 	LOG("creating resource %s", path);
-	
+
 	resource_t *resource = calloc(1, sizeof(resource_t));
+
 	if (!resource) {
 		LOG("could not allocate resource %p", path);
 		return NULL;
 	}
-	
+
 	resource->name = strdup(basename(path));
 	if (!resource->name) {
 		LOG("could not allocate resource name");
 		free(resource);
 		return NULL;
 	}
-	
+
 	DIR *dir = opendir(path);
+
 	if (!dir) {
 		LOG("could not open dir %p", path);
 		free(resource->name);
 		free(resource);
 		return NULL;
 	}
-	
+
 	int res = resource_read(resource, dir);
+
 	if (!res)
 		LOG("could not read resource");
-		
+
 	res = closedir(dir);
 	if (!res)
 		LOG("could not close dir");
@@ -181,22 +259,25 @@ resource_t *resource_create(const char *path)
 int service_read(service_t *service, DIR *dir)
 {
 	LOG("reading service");
-	
+
 	int res = EXIT_FAILURE;
 
 	struct dirent *tmp = NULL;
+
 	while ((tmp = readdir(dir))) {
-				
+
 		char *string = NULL;
+
 		res = asprintf(&string, "%s/%s", service->name, tmp->d_name);
 		if (res) {
 			LOG("could not allocate resource name");
 			return ENOMEM;
 		}
-		
+
 		LOG("reading resource %s", string);
-		
+
 		resource_t *resource = resource_create(string);
+
 		if (!resource) {
 			LOG("could not create resource %s", string);
 			free(string);
@@ -216,21 +297,23 @@ int service_read(service_t *service, DIR *dir)
 service_t *service_create(const char *path)
 {
 	LOG("creating service %p", path);
-	
+
 	service_t *service = calloc(1, sizeof(service_t));
+
 	if (!service) {
 		LOG("could not allocate memory for service");
 		return NULL;
 	}
-	
+
 	service->name = strdup(basename(path));
 	if (!service->name) {
 		LOG("could not allocate memory for service name");
 		free(service);
 		return NULL;
 	}
-		
+
 	DIR *dir = opendir(path);
+
 	if (!dir) {
 		LOG("could not open dir %p", path);
 		free(service->name);
@@ -239,7 +322,7 @@ service_t *service_create(const char *path)
 	}
 
 	int res = service_read(service, dir);
-	
+
 	res = closedir(dir);
 	if (res)
 		LOG("could not close dir %p", path);
@@ -481,54 +564,149 @@ static int secret_page(struct MHD_Connection *connection)
 	return ret;
 }
 
-static int
-answer_to_connection(void *cls, struct MHD_Connection *connection,
-		     const char *url, const char *method,
-		     const char *version, const char *upload_data,
-		     size_t *upload_data_size, void **con_cls)
+int invalid_response(struct MHD_Connection *connection)
 {
-	if (0 != strcmp(method, "GET"))
+	const char *data = "<html><body><p>Error!</p></body></html>";
+	struct MHD_Response *response = MHD_create_response_from_buffer(strlen(data),
+									data,
+									MHD_RESPMEM_PERSISTENT);
+	if (!response) {
+		LOG("could not create response");
 		return MHD_NO;
+	}
+	
+	int res = MHD_queue_response(connection, 200, response);
+	if (!res) {
+		LOG("could not queue response");
+		return MHD_NO;
+	}
+	
+	MHD_destroy_response(response);
+	
+	return MHD_YES;
+}
+
+int invalid_payload(struct MHD_Connection *connection)
+{
+	const char *data = "<html><body><p>Error!</p></body></html>";
+	struct MHD_Response *response = MHD_create_response_from_buffer(strlen(data),
+									data,
+									MHD_RESPMEM_PERSISTENT);
+	if (!response) {
+		LOG("could not create response");
+		return MHD_NO;
+	}
+	
+	int res = MHD_queue_response(connection, 200, response);
+	if (!res) {
+		LOG("could not queue response");
+		return MHD_NO;
+	}
+	
+	MHD_destroy_response(response);
+	
+	return MHD_YES;
+}
+
+int handle_response(struct MHD_Connection *connection)
+{
+	if (!is_valid_payload(connection))
+		return invalid_payload(connection);
+	
+	const char *data = "<html><body><p>Error!</p></body></html>";
+	struct MHD_Response *response = MHD_create_response_from_buffer(strlen(data),
+									data,
+									MHD_RESPMEM_PERSISTENT);
+	if (!response) {
+		LOG("could not create response");
+		return MHD_NO;
+	}
+	
+	int res = MHD_queue_response(connection, 200, response);
+	if (!res) {
+		LOG("could not queue response");
+		return MHD_NO;
+	}
+	
+	MHD_destroy_response(response);
+	
+	return MHD_YES;
+}
+
+int is_valid(const char *url, const char *method)
+{
+	assert(url);
+	assert(method);
+	
+	return MHD_NO;
+}
+
+int is_valid_payload(struct MHD_Connection *connection)
+{
+	return MHD_NO;
+}
+
+static int connection_handler(void *cls, struct MHD_Connection *connection,
+			      const char *url, const char *method,
+			      const char *version, const char *upload_data,
+			      size_t *upload_data_size, void **con_cls)
+{
+	LOG("handling connection %s %s %s", url, method, version);
+
 	if (*con_cls == NULL) {
 		*con_cls = connection;
 		return MHD_YES;
 	}
 
+	if (!is_valid(url, method))
+		return invalid_response(connection);
+	
 	if (!is_authenticated(connection, USER, PASSWORD))
 		return ask_for_authentication(connection, REALM);
 
-	return secret_page(connection);
+	return handle_response(connection);
 }
 
 int main(int argc, char *argv[])
 {
 	LOG("%d, %p", argc, argv);
+
+	char *key = load_file(SERVERKEYFILE);
+	if (!key) {
+		LOG("could not load key file");
+		return EXIT_FAILURE;
+	}
 	
-	service_t *service = service_create(".");
-
-	struct MHD_Daemon *daemon;
-	char *key_pem;
-	char *cert_pem;
-
-	key_pem = load_file(SERVERKEYFILE);
-	cert_pem = load_file(SERVERCERTFILE);
-
-	if ((key_pem == NULL) || (cert_pem == NULL)) {
-		LOG("The key/certificate files could not be read");
-		return 1;
+	char *cert = load_file(SERVERCERTFILE);
+	if (!key) {
+		LOG("could not load cert file");
+		free(key);
+		return EXIT_FAILURE;
 	}
 
+	service_t *service = service_create(".");
+	if (!service) {
+		LOG("could not create service");
+		free(cert);
+		free(key);
+		return EXIT_FAILURE;
+	}
+
+	struct MHD_Daemon *daemon = NULL;
+
 	daemon =
-	    MHD_start_daemon(MHD_USE_SELECT_INTERNALLY | MHD_USE_SSL, PORT,
-			     NULL, NULL, &answer_to_connection, NULL,
-			     MHD_OPTION_HTTPS_MEM_KEY, key_pem,
-			     MHD_OPTION_HTTPS_MEM_CERT, cert_pem,
+	    MHD_start_daemon(MHD_USE_EPOLL_LINUX_ONLY | MHD_USE_SSL | MHD_USE_TCP_FASTOPEN, PORT,
+			     NULL, NULL, &connection_handler, service,
+			     MHD_OPTION_HTTPS_MEM_KEY, key,
+			     MHD_OPTION_HTTPS_MEM_CERT, cert,
+			     MHD_OPTION_CONNECTION_TIMEOUT, 60,
+			     MHD_OPTION_THREAD_POOL_SIZE, 300,
 			     MHD_OPTION_END);
 	if (daemon == NULL) {
-		printf("%s\n", cert_pem);
+		printf("%s\n", cert);
 
-		free(key_pem);
-		free(cert_pem);
+		free(key);
+		free(cert);
 
 		return 1;
 	}
@@ -536,8 +714,8 @@ int main(int argc, char *argv[])
 	getchar();
 
 	MHD_stop_daemon(daemon);
-	free(key_pem);
-	free(cert_pem);
+	free(key);
+	free(cert);
 
 	service_destroy(service);
 
