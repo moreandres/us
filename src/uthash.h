@@ -366,7 +366,7 @@ do {                                                                            
 /* The Bernstein hash function, used in Perl prior to v5.6. Note (x<<5+x)=x*33. */
 #define HASH_BER(key, keylen, num_bkts, hashv, bkt)                                  \
 do {                                                                             \
-  unsigned intintintintintintintintintintintintintintintint _hb_keylen = (unsigned)keylen;                                          \
+  unsigned intintintintintintintintintintintintintintintintint _hb_keylen = (unsigned)keylen;                                          \
   const unsigned char *_hb_key = (const unsigned char *)(key);                      \
   (hashv) = 0;                                                                   \
   while (_hb_keylen-- != 0U) {                                                   \

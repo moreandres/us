@@ -18,6 +18,15 @@
 # always run from test directory
 cd $(dirname $0)
 
+# skip if no openssl is available
+which openssl || exit 77
+
+# generate server key
+openssl genrsa -out server.key 1024
+
+# generate server certificate
+openssl req -days 365 -out server.pem -new -x509 -key server.key -batch
+
 ../../../src/us
 
 test $? == 1

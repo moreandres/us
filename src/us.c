@@ -83,10 +83,11 @@ typedef struct service {
 WJElement document_create(char *path)
 {
 	LOG("creating document %p", path);
-	
+
 	WJElement element = NULL;
 	WJReader reader = NULL;
 	FILE *file = fopen(path, "r");
+
 	if (!file) {
 		LOG("could not open file %p", path);
 		return NULL;
@@ -103,9 +104,11 @@ WJElement document_create(char *path)
 
 	element = WJEOpenDocument(reader, NULL, NULL, NULL);
 	XplBool bool = WJRCloseDocument(reader);
+
 	if (!bool)
 		LOG("could not close file reader");
 	int res = fclose(file);
+
 	if (!res)
 		LOG("could not close file");
 
@@ -115,14 +118,14 @@ WJElement document_create(char *path)
 	}
 
 	WJEDump(element);
-	
+
 	return element;
 }
 
 int method_read(method_t *method, char *path)
 {
 	LOG("reading method");
-	
+
 	char *string = NULL;
 
 	int res = -1;
@@ -132,20 +135,20 @@ int method_read(method_t *method, char *path)
 		LOG("could not allocate request path");
 		return ENOMEM;
 	}
-	
+
 	method->request = document_create(string);
 	free(string);
 	if (!method->request) {
 		LOG("could not create request document");
 		return EINVAL;
 	}
-	
+
 	res = asprintf(&string, "%s/response.json", path);
 	if (!res) {
 		LOG("could not allocate response path");
 		return ENOMEM;
 	}
-	
+
 	method->response = document_create(string);
 	free(string);
 	if (!method->request) {
@@ -159,8 +162,9 @@ int method_read(method_t *method, char *path)
 method_t *method_create(char *path)
 {
 	LOG("creating method %s", path);
-	
+
 	method_t *method = (method_t *) calloc(1, sizeof(method_t));
+
 	if (!method) {
 		LOG("could not allocate method");
 		return NULL;
@@ -174,20 +178,21 @@ method_t *method_create(char *path)
 	}
 
 	int res = method_read(method, path);
+
 	if (!res) {
 		LOG("could not read method");
 		free(method->name);
 		free(method);
 		return NULL;
 	}
-	
+
 	return method;
 }
 
 int resource_read(resource_t *resource, DIR *dir)
 {
 	LOG("reading resource %p %p", resource, dir);
-	
+
 	struct dirent *tmp = NULL;
 
 	while ((tmp = readdir(dir))) {
@@ -202,12 +207,13 @@ int resource_read(resource_t *resource, DIR *dir)
 			return ENOMEM;
 		}
 		method_t *method = method_create(string);
+
 		if (!method) {
 			LOG("could not create method %s", string);
 			free(string);
 			return EINVAL;
 		}
-		
+
 		HASH_ADD_KEYPTR(hh, resource->methods,
 				method->name,
 				strlen(method->name),
@@ -219,18 +225,17 @@ int resource_read(resource_t *resource, DIR *dir)
 
 resource_t *resource_create(const char *path)
 {
-	LOG("creating resource %s", path);
+	LOG("", path);
 
 	resource_t *resource = calloc(1, sizeof(resource_t));
-
 	if (!resource) {
-		LOG("could not allocate resource %p", path);
+		LOG("Could not allocate resource: %s", strerror(errno));
 		return NULL;
 	}
 
 	resource->name = strdup(basename(path));
-	if (!resource->name) {
-		LOG("could not allocate resource name");
+	if (!(resource->name)) {
+		LOG("Could not allocate resource name: %s", strerror(errno));
 		free(resource);
 		return NULL;
 	}
@@ -238,7 +243,7 @@ resource_t *resource_create(const char *path)
 	DIR *dir = opendir(path);
 
 	if (!dir) {
-		LOG("could not open dir %p", path);
+		LOG("Could not open dir %p", path);
 		free(resource->name);
 		free(resource);
 		return NULL;
@@ -256,30 +261,27 @@ resource_t *resource_create(const char *path)
 	return resource;
 }
 
-int service_read(service_t *service, DIR *dir)
+int service_parse(service_t *service, DIR *dir)
 {
-	LOG("reading service");
-
-	int res = EXIT_FAILURE;
+	LOG("");
 
 	struct dirent *tmp = NULL;
 
 	while ((tmp = readdir(dir))) {
 
 		char *string = NULL;
-
-		res = asprintf(&string, "%s/%s", service->name, tmp->d_name);
-		if (res) {
-			LOG("could not allocate resource name");
+		int res = asprintf(&string, "%s/%s", service->name, tmp->d_name);
+		if (res == -1) {
+			LOG("Could not allocate resource name");
 			return ENOMEM;
 		}
 
-		LOG("reading resource %s", string);
+		LOG("Reading resource %s", string);
 
 		resource_t *resource = resource_create(string);
 
 		if (!resource) {
-			LOG("could not create resource %s", string);
+			LOG("Could not create resource %s", string);
 			free(string);
 			return EINVAL;
 		}
@@ -296,36 +298,44 @@ int service_read(service_t *service, DIR *dir)
 
 service_t *service_create(const char *path)
 {
-	LOG("creating service %p", path);
+	LOG("");
 
 	service_t *service = calloc(1, sizeof(service_t));
-
 	if (!service) {
-		LOG("could not allocate memory for service");
+		LOG("Could not allocate service: %s", strerror(errno));
 		return NULL;
 	}
 
 	service->name = strdup(basename(path));
-	if (!service->name) {
-		LOG("could not allocate memory for service name");
+	if (!(service->name)) {
+		LOG("Could not allocate service name");
 		free(service);
 		return NULL;
 	}
 
 	DIR *dir = opendir(path);
-
 	if (!dir) {
-		LOG("could not open dir %p", path);
+		LOG("Could not open dir %p", path);
 		free(service->name);
 		free(service);
 		return NULL;
 	}
 
-	int res = service_read(service, dir);
+	LOG("Parsing service %s", service->name);
+	int res = service_parse(service, dir);
+	if (!res) {
+		LOG("Could not parse service");
+		free(service->name);
+		free(service);		
+		res = closedir(dir);
+		if (res)
+			LOG("Could not close dir %p", path);
+		return NULL;
+	}
 
 	res = closedir(dir);
 	if (res)
-		LOG("could not close dir %p", path);
+		LOG("Could not close dir %p", path);
 
 	return service;
 }
@@ -428,48 +438,63 @@ static char *string_to_base64(const char *message)
 
 static long get_file_size(const char *filename)
 {
-	FILE *fp;
-
-	fp = fopen(filename, "rb");
-	if (fp) {
-		long size;
-
-		if ((fseek(fp, 0, SEEK_END) != 0) || (-1 == (size = ftell(fp))))
-			size = 0;
-
-		fclose(fp);
-
-		return size;
-	} else
+	LOG("");
+	
+	FILE *fp = fopen(filename, "rb");
+	if (!fp) {
+		LOG("Could not open %s: %s", filename, strerror(errno));
 		return 0;
+	}
+	
+	long size = 0;
+
+	if ((fseek(fp, 0, SEEK_END) != 0)
+	    || (-1 == (size = ftell(fp)))) {
+		LOG("Could not seek end %s: %s",
+		    filename, strerror(errno));
+		size = 0;
+	}
+	fclose(fp);
+
+	LOG("File size is %d", size);
+	
+	return size;
 }
 
 static char *load_file(const char *filename)
 {
-	FILE *fp;
-	char *buffer;
-	long size;
-
-	size = get_file_size(filename);
-	if (size == 0)
+	LOG("");
+	
+	long size = get_file_size(filename);
+	if (size == 0) {
+		LOG("Could not get file size %s", filename);
 		return NULL;
-
-	fp = fopen(filename, "rb");
-	if (!fp)
+	}
+	
+	FILE *fp = fopen(filename, "rb");
+	if (!fp) {
+		LOG("Could not open file %s: %s",
+		    filename, strerror(errno));
 		return NULL;
+	}
 
-	buffer = malloc(size);
+	char *buffer = calloc(size, sizeof(char));
 	if (!buffer) {
+		LOG("Could not allocate buffer: %s", strerror(errno));
 		fclose(fp);
 		return NULL;
 	}
 
 	if (size != fread(buffer, 1, size, fp)) {
+		LOG("Could not read into buffer: %s", strerror(errno));
 		free(buffer);
 		buffer = NULL;
 	}
 
-	fclose(fp);
+	int res = fclose(fp);
+	if (!res)
+		LOG("Could not close file: %s", strerror(errno));
+	
 	return buffer;
 }
 
@@ -574,15 +599,16 @@ int invalid_response(struct MHD_Connection *connection)
 		LOG("could not create response");
 		return MHD_NO;
 	}
-	
+
 	int res = MHD_queue_response(connection, 200, response);
+
 	if (!res) {
 		LOG("could not queue response");
 		return MHD_NO;
 	}
-	
+
 	MHD_destroy_response(response);
-	
+
 	return MHD_YES;
 }
 
@@ -596,15 +622,16 @@ int invalid_payload(struct MHD_Connection *connection)
 		LOG("could not create response");
 		return MHD_NO;
 	}
-	
+
 	int res = MHD_queue_response(connection, 200, response);
+
 	if (!res) {
 		LOG("could not queue response");
 		return MHD_NO;
 	}
-	
+
 	MHD_destroy_response(response);
-	
+
 	return MHD_YES;
 }
 
@@ -612,7 +639,7 @@ int handle_response(struct MHD_Connection *connection)
 {
 	if (!is_valid_payload(connection))
 		return invalid_payload(connection);
-	
+
 	const char *data = "<html><body><p>Error!</p></body></html>";
 	struct MHD_Response *response = MHD_create_response_from_buffer(strlen(data),
 									data,
@@ -621,15 +648,16 @@ int handle_response(struct MHD_Connection *connection)
 		LOG("could not create response");
 		return MHD_NO;
 	}
-	
+
 	int res = MHD_queue_response(connection, 200, response);
+
 	if (!res) {
 		LOG("could not queue response");
 		return MHD_NO;
 	}
-	
+
 	MHD_destroy_response(response);
-	
+
 	return MHD_YES;
 }
 
@@ -637,7 +665,7 @@ int is_valid(const char *url, const char *method)
 {
 	assert(url);
 	assert(method);
-	
+
 	return MHD_NO;
 }
 
@@ -660,7 +688,7 @@ static int connection_handler(void *cls, struct MHD_Connection *connection,
 
 	if (!is_valid(url, method))
 		return invalid_response(connection);
-	
+
 	if (!is_authenticated(connection, USER, PASSWORD))
 		return ask_for_authentication(connection, REALM);
 
@@ -669,49 +697,50 @@ static int connection_handler(void *cls, struct MHD_Connection *connection,
 
 int main(int argc, char *argv[])
 {
-	LOG("%d, %p", argc, argv);
+	LOG("");
 
+	LOG("Loading key");
 	char *key = load_file(SERVERKEYFILE);
 	if (!key) {
-		LOG("could not load key file");
+		LOG("Could not load key file");
 		return EXIT_FAILURE;
 	}
-	
+
+	LOG("Loading certificate");
 	char *cert = load_file(SERVERCERTFILE);
 	if (!key) {
-		LOG("could not load cert file");
+		LOG("Could not load certificate file");
 		free(key);
 		return EXIT_FAILURE;
 	}
 
+	/* what about key password? */
+
+	LOG("Creating service");
 	service_t *service = service_create(".");
 	if (!service) {
-		LOG("could not create service");
+		LOG("Could not create service");
 		free(cert);
 		free(key);
 		return EXIT_FAILURE;
 	}
 
-	struct MHD_Daemon *daemon = NULL;
+	/* pre populate reusable responses */
 
-	daemon =
-	    MHD_start_daemon(MHD_USE_EPOLL_LINUX_ONLY | MHD_USE_SSL | MHD_USE_TCP_FASTOPEN, PORT,
-			     NULL, NULL, &connection_handler, service,
-			     MHD_OPTION_HTTPS_MEM_KEY, key,
-			     MHD_OPTION_HTTPS_MEM_CERT, cert,
+	int options = MHD_USE_EPOLL_LINUX_ONLY | MHD_USE_SSL | MHD_USE_TCP_FASTOPEN | MHD_USE_SELECT_INTERNALLY | MHD_USE_DEBUG;
+	struct MHD_Daemon *daemon = MHD_start_daemon(options, PORT,
+						     NULL, NULL, &connection_handler, service,
+						     MHD_OPTION_HTTPS_MEM_KEY, key,
+						     MHD_OPTION_HTTPS_MEM_CERT, cert,
 			     MHD_OPTION_CONNECTION_TIMEOUT, 60,
-			     MHD_OPTION_THREAD_POOL_SIZE, 300,
+			     MHD_OPTION_THREAD_POOL_SIZE, 32,
 			     MHD_OPTION_END);
 	if (daemon == NULL) {
-		printf("%s\n", cert);
-
+		LOG("could not start MHD daemon");
 		free(key);
 		free(cert);
-
-		return 1;
+		return EXIT_FAILURE;
 	}
-
-	getchar();
 
 	MHD_stop_daemon(daemon);
 	free(key);
@@ -719,5 +748,5 @@ int main(int argc, char *argv[])
 
 	service_destroy(service);
 
-	return 0;
+	return EXIT_SUCCESS;
 }

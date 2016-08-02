@@ -47,6 +47,6 @@ AC_SEARCH_LIBS(WJRCloseDocument, wjreader, [], AC_MSG_ERROR([missing WJRCloseDoc
 AC_SEARCH_LIBS(WJEObjectF, wjelement, [], AC_MSG_ERROR([missing WJEObject]))
 AC_SEARCH_LIBS(criterion_register_test, criterion, [], AC_MSG_ERROR([missing criterion]))
 
-AC_CONFIG_FILES([Makefile src/Makefile t/Makefile t/ut/Makefile t/st/Makefile t/st/empty/Makefile t/qa/Makefile])
+AC_CONFIG_FILES([Makefile src/Makefile t/Makefile t/ut/Makefile t/st/Makefile t/qa/Makefile])
 
 AC_OUTPUT
