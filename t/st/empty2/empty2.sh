@@ -27,6 +27,7 @@ openssl genrsa -out server.key 1024
 # generate server certificate
 openssl req -days 365 -out server.pem -new -x509 -key server.key -batch
 
-../../../src/us
+pwd
+../../../src/us service
 
 test $? == 1

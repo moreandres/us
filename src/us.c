@@ -75,9 +75,15 @@ typedef struct resource {
 	UT_hash_handle hh;
 } resource_t;
 
+typedef struct response {
+	int id;
+	UT_hash_handle hh;
+} response_t;
+
 typedef struct service {
 	char *name;
 	resource_t *resources;
+	response_t *responses;
 } service_t;
 
 WJElement document_create(char *path)
@@ -225,7 +231,7 @@ int resource_read(resource_t *resource, DIR *dir)
 
 resource_t *resource_create(const char *path)
 {
-	LOG("", path);
+	LOG("%s", path);
 
 	resource_t *resource = calloc(1, sizeof(resource_t));
 	if (!resource) {
@@ -261,12 +267,69 @@ resource_t *resource_create(const char *path)
 	return resource;
 }
 
+struct code {
+	int id;
+	char *description;
+};
+#define ARRAY_SIZE(array) (sizeof(array) / sizeof(array[0]))
+
+response_t *response_create(int id, char *description)
+{
+	LOG("%d, %s", id, description);
+
+	if (id < 1 || !description)
+		return NULL;
+
+	return NULL;
+}
+
+int service_responses(service_t *service)
+{
+	LOG("%p", service);
+
+	if (!service)
+		return EINVAL;
+
+	struct code codes[] = { { 200, "OK" },
+				{ 201, "Created" },
+				{ 202, "Accepted" },
+				{ 304, "Not Modified" },
+				{ 400, "Bad Request" },
+				{ 401, "Unauthorized" },
+				{ 404, "Not Found" },
+				{ 405, "Method Not Allowed" },
+				{ 415, "Unsupported Media Type"},
+				{ 429, "Too Many Requests" },
+				{ 500, "Internal Server Error" },
+				{ 503, "Service Unavailable" },
+				{ 505, "HTTP Version Not Supported"},
+	};
+
+	int i = 0;
+	int size = ARRAY_SIZE(codes);
+	for (i = 0; i < size; i++) {
+		response_t *response = response_create(codes[i].id,
+						       codes[i].description);
+		if (!response) {
+			LOG("could not create response");
+			continue;
+		}
+		
+		HASH_ADD_INT(service->responses, id, response);
+	}
+
+	return EXIT_SUCCESS;
+}
+
 int service_parse(service_t *service, DIR *dir)
 {
-	LOG("");
+	LOG("%p, %p", service, dir);
 
 	struct dirent *tmp = NULL;
 
+	if (!service || !dir)
+		return EINVAL;
+	
 	while ((tmp = readdir(dir))) {
 
 		char *string = NULL;
@@ -298,7 +361,7 @@ int service_parse(service_t *service, DIR *dir)
 
 service_t *service_create(const char *path)
 {
-	LOG("");
+	LOG("%s", path);
 
 	service_t *service = calloc(1, sizeof(service_t));
 	if (!service) {
@@ -342,6 +405,8 @@ service_t *service_create(const char *path)
 
 void method_destroy(method_t *method)
 {
+	LOG("%p", method);
+
 	WJECloseDocument(method->request);
 	WJECloseDocument(method->response);
 	free(method->name);
@@ -350,6 +415,8 @@ void method_destroy(method_t *method)
 
 void resource_destroy(resource_t *resource)
 {
+	LOG("%p", resource);
+
 	method_t *method = NULL;
 	method_t *tmp = NULL;
 	method_t *methods = resource->methods;
@@ -364,6 +431,8 @@ void resource_destroy(resource_t *resource)
 
 void service_destroy(service_t *service)
 {
+	LOG("%p", service);
+	
 	resource_t *resource = NULL;
 	resource_t *tmp = NULL;
 	resource_t *resources = service->resources;
@@ -376,20 +445,6 @@ void service_destroy(service_t *service)
 	free(service);
 }
 
-/*
-  load_service(); load_resources(); load_schema(); load_json(); load_file();
- */
-
-/*
-  [ resource, request schema, response schema, stats (count, avg latency, error rate) ]
-*/
-
-/* handle health -> OK, stats; log_stats() */
-
-/*
-  handle_connection -> parse_request -> validate_request -> validate_method -> process_request -> handle_get handle_post handle_delete handle_put handle_patch -> handle_options -> handle_head -> handle_other
- */
-
 #define PORT 8888
 
 #define REALM     "\"Maintenance\""
@@ -399,19 +454,23 @@ void service_destroy(service_t *service)
 #define SERVERKEYFILE "server.key"
 #define SERVERCERTFILE "server.pem"
 
-static char *string_to_base64(const char *message)
+char *string_to_base64(const char *message)
 {
+	LOG("%s", message);
+	
 	const char *lookup =
 	    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-	unsigned long l;
-	int i;
-	char *tmp;
+	unsigned long l = 0;
+	size_t i = 0;
+	char *tmp = NULL;
 	size_t length = strlen(message);
 
-	tmp = malloc(length * 2);
-	if (tmp == NULL)
+	tmp = calloc(1, length * 2);
+	if (tmp == NULL) {
+		LOG("could not allocate base64: %s", strerror(errno));
 		return tmp;
-
+	}
+	
 	tmp[0] = 0;
 
 	for (i = 0; i < length; i += 3) {
@@ -436,9 +495,9 @@ static char *string_to_base64(const char *message)
 	return tmp;
 }
 
-static long get_file_size(const char *filename)
+size_t get_file_size(const char *filename)
 {
-	LOG("");
+	LOG("%s", filename);
 	
 	FILE *fp = fopen(filename, "rb");
 	if (!fp) {
@@ -456,16 +515,16 @@ static long get_file_size(const char *filename)
 	}
 	fclose(fp);
 
-	LOG("File size is %d", size);
+	LOG("File size is %ld", size);
 	
 	return size;
 }
 
-static char *load_file(const char *filename)
+char *load_file(const char *filename)
 {
-	LOG("");
+	LOG("%s", filename);
 	
-	long size = get_file_size(filename);
+	size_t size = get_file_size(filename);
 	if (size == 0) {
 		LOG("Could not get file size %s", filename);
 		return NULL;
@@ -498,7 +557,7 @@ static char *load_file(const char *filename)
 	return buffer;
 }
 
-static int
+int
 ask_for_authentication(struct MHD_Connection *connection, const char *realm)
 {
 	int ret;
@@ -533,9 +592,8 @@ ask_for_authentication(struct MHD_Connection *connection, const char *realm)
 	return ret;
 }
 
-static int
-is_authenticated(struct MHD_Connection *connection,
-		 const char *username, const char *password)
+int is_authenticated(struct MHD_Connection *connection,
+		     const char *username, const char *password)
 {
 	const char *headervalue;
 	char *expected_b64, *expected;
@@ -571,27 +629,9 @@ is_authenticated(struct MHD_Connection *connection,
 	return authenticated;
 }
 
-static int secret_page(struct MHD_Connection *connection)
-{
-	int ret;
-	struct MHD_Response *response;
-	const char *page = "<html><body>A secret.</body></html>";
-
-	response =
-	    MHD_create_response_from_buffer(strlen(page), (void *)page,
-					    MHD_RESPMEM_PERSISTENT);
-	if (!response)
-		return MHD_NO;
-
-	ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
-	MHD_destroy_response(response);
-
-	return ret;
-}
-
 int invalid_response(struct MHD_Connection *connection)
 {
-	const char *data = "<html><body><p>Error!</p></body></html>";
+	char *data = "<html><body><p>Error!</p></body></html>";
 	struct MHD_Response *response = MHD_create_response_from_buffer(strlen(data),
 									data,
 									MHD_RESPMEM_PERSISTENT);
@@ -614,7 +654,7 @@ int invalid_response(struct MHD_Connection *connection)
 
 int invalid_payload(struct MHD_Connection *connection)
 {
-	const char *data = "<html><body><p>Error!</p></body></html>";
+	char *data = "<html><body><p>Error!</p></body></html>";
 	struct MHD_Response *response = MHD_create_response_from_buffer(strlen(data),
 									data,
 									MHD_RESPMEM_PERSISTENT);
@@ -635,12 +675,19 @@ int invalid_payload(struct MHD_Connection *connection)
 	return MHD_YES;
 }
 
+int is_valid_payload(struct MHD_Connection *connection)
+{
+	LOG("%p", connection);
+
+	return MHD_NO;
+}
+
 int handle_response(struct MHD_Connection *connection)
 {
 	if (!is_valid_payload(connection))
 		return invalid_payload(connection);
 
-	const char *data = "<html><body><p>Error!</p></body></html>";
+	char *data = "<html><body><p>Error!</p></body></html>";
 	struct MHD_Response *response = MHD_create_response_from_buffer(strlen(data),
 									data,
 									MHD_RESPMEM_PERSISTENT);
@@ -669,17 +716,12 @@ int is_valid(const char *url, const char *method)
 	return MHD_NO;
 }
 
-int is_valid_payload(struct MHD_Connection *connection)
+int connection_handler(void *cls, struct MHD_Connection *connection,
+		       const char *url, const char *method,
+		       const char *version, const char *upload_data,
+		       size_t *upload_data_size, void **con_cls)
 {
-	return MHD_NO;
-}
-
-static int connection_handler(void *cls, struct MHD_Connection *connection,
-			      const char *url, const char *method,
-			      const char *version, const char *upload_data,
-			      size_t *upload_data_size, void **con_cls)
-{
-	LOG("handling connection %s %s %s", url, method, version);
+	LOG("%p, %p, %s, %s, %s, %s, %p, %p", cls, connection, url, method, version, upload_data, upload_data_size, con_cls);
 
 	if (*con_cls == NULL) {
 		*con_cls = connection;
@@ -697,7 +739,7 @@ static int connection_handler(void *cls, struct MHD_Connection *connection,
 
 int main(int argc, char *argv[])
 {
-	LOG("");
+	LOG("%d, %p", argc, argv);
 
 	LOG("Loading key");
 	char *key = load_file(SERVERKEYFILE);

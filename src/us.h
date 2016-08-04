@@ -18,8 +18,30 @@
 #ifndef __US_H__
 #define __US_H__
 
+#include <wjelement.h>
+#include <dirent.h>
+#include <signal.h>
+
+typedef struct method method_t;
+typedef struct resource resource_t;
+typedef struct service service_t;
+
 void signal_handler(const int signal);
+WJElement document_create(char *path);
+char *string_to_base64(const char *message);
+size_t get_file_size(const char *filename);
+char *load_file(const char *filename);
+
+method_t *method_create(char *path);
+int method_read(method_t *method, char *path);
+void method_destroy(method_t *method);
+
+resource_t *resource_create(const char *path);
+int resource_read(resource_t *resource, DIR *dir);
+void resource_destroy(resource_t *resource);
 
 service_t *service_create(const char *path);
+void service_destroy(service_t *service);
+int service_parse(service_t *service, DIR *dir);
 
 #endif
