@@ -25,6 +25,7 @@
 typedef struct method method_t;
 typedef struct resource resource_t;
 typedef struct service service_t;
+typedef struct response response_t;
 
 void signal_handler(const int signal);
 WJElement document_create(char *path);
@@ -33,7 +34,7 @@ size_t get_file_size(const char *filename);
 char *load_file(const char *filename);
 
 method_t *method_create(char *path);
-int method_read(method_t *method, char *path);
+int method_parse(method_t *method, char *path);
 void method_destroy(method_t *method);
 
 resource_t *resource_create(const char *path);

@@ -70,9 +70,9 @@ Test(method, create)
 		  "method_create on invalid path returns NULL");
 }
 
-Test(method, read)
+Test(method, parse)
 {
-	cr_assert(EINVAL == method_read(NULL, NULL),
+	cr_assert(EINVAL == method_parse(NULL, NULL),
 		  "method_create on NULL returns EINVAL");
 }
 

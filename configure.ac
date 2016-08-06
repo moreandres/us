@@ -27,6 +27,7 @@ AC_CHECK_HEADERS([string.h])
 AC_CHECK_HEADERS([fcntl.h])
 AC_CHECK_HEADERS([sys/time.h])
 AC_CHECK_HEADERS([sys/socket.h])
+AC_CHECK_HEADER_STDBOOL
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_TYPE_SIZE_T
@@ -39,7 +40,7 @@ AC_CHECK_TYPES([ptrdiff_t])
 AC_FUNC_ERROR_AT_LINE
 AC_FUNC_MALLOC
 AC_FUNC_REALLOC
-AC_CHECK_FUNCS([memset gettimeofday])
+AC_CHECK_FUNCS([memset gettimeofday strdup strerror])
 
 AC_SEARCH_LIBS(pthread_create, pthread, [], AC_MSG_ERROR([missing pthread_create]))
 AC_SEARCH_LIBS(MHD_start_daemon, microhttpd, [], AC_MSG_ERROR([missing MHD_start_daemon]))

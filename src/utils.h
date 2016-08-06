@@ -15,13 +15,21 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/**
+ * Utilities
+ */
+
 #ifndef __UTILS_H__
 #define __UTILS_H__
 
-double stamp(void);
-
 #include <stdio.h>
 #include <errno.h>
+
+/**
+ * @return epoch as a double
+ */
+
+double stamp(void);
 
 #define LOG(fmt, args...)						\
 	do {								\
@@ -31,4 +39,4 @@ double stamp(void);
 		printf("\n");						\
 	} while (0)
 
-#endif
+#endif /* __UTILS_H__ */

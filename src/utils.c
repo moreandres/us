@@ -20,13 +20,17 @@
 #include <sys/time.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <string.h>
 #include "utils.h"
 
 double stamp(void)
 {
 	struct timeval tv;
-
-	gettimeofday(&tv, NULL);
-
+	int res = gettimeofday(&tv, NULL);
+	if (res) {
+		printf("could not get time: %s", strerror(errno));
+		return -1;
+	}
+	
 	return (tv.tv_sec + tv.tv_usec / 1000000.0);
 }

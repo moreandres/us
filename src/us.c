@@ -15,42 +15,81 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/**
+ * REST domain abstractions
+ */
+
 #define _GNU_SOURCE
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <signal.h>
 #include <argp.h>
-#include <dlfcn.h>
-#include <sqlite3.h>
 #include <assert.h>
+#include <dirent.h>
+#include <dlfcn.h>
 #include <errno.h>
 #include <error.h>
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <fcntl.h>
-#include <unistd.h>
+#include <microhttpd.h>
+#include <signal.h>
+#include <sqlite3.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-
-#include <dirent.h>
-
-#include <sys/types.h>
 #include <sys/select.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/time.h>
+#include <sys/types.h>
+#include <sys/types.h>
 #include <time.h>
-
-#include <microhttpd.h>
+#include <unistd.h>
 #include <wjelement.h>
 #include <wjreader.h>
 
 #include <config.h>
+
 #include "uthash.h"
 #include "utils.h"
+#include "us.h"
+
+/**
+ * service
+ */
+
+typedef struct service {
+	char *name; /**< service name */
+	resource_t *resources; /**< service resources */
+	response_t *responses; /**< service responses */
+} service_t;
+
+/**
+ * global context
+ */
+
+typedef struct context_s {
+	struct MHD_Daemon *daemon; /**< daemon */
+	service_t *service; /**< service definition */
+} context_t;
+
+context_t context;
+
+/**
+ * if signaled stop daemon and destroy service definition
+ *
+ * @param signal signal
+ */
 
 void signal_handler(const int signal)
 {
 	LOG("%d", signal);
+
+	switch (signal) {
+	case SIGINT:
+		MHD_stop_daemon(context.daemon);
+		service_destroy(context.service);
+		exit(EXIT_FAILURE);
+	default:
+		LOG("signal %s (%d) not supported", strsignal(signal), signal);
+	}
 }
 
 /* TODO: argument parsing */
@@ -62,29 +101,42 @@ void signal_handler(const int signal)
 /* service/resource/get/request.json */
 /* service/resource/get/response.json */
 
+/**
+ * HTTP method abstraction
+ */
+
 typedef struct method {
-	char *name;
-	WJElement request;
-	WJElement response;
-	UT_hash_handle hh;
+	char *name; /**< method name */
+	WJElement request; /**< request schema */
+	WJElement response; /**< response schema */
+	UT_hash_handle hh; /**< hash */
 } method_t;
 
+/**
+ * HTTP resource abstraction
+ */
+
 typedef struct resource {
-	char *name;
-	method_t *methods;
-	UT_hash_handle hh;
+	char *name; /**< resource name */
+	method_t *methods; /**< resource method */
+	UT_hash_handle hh; /**< hash */
 } resource_t;
 
+/**
+ * HTTP response abstraction
+ */
+
 typedef struct response {
-	int id;
-	UT_hash_handle hh;
+	int id; /**< response ID */
+	UT_hash_handle hh; /**< hash */
 } response_t;
 
-typedef struct service {
-	char *name;
-	resource_t *resources;
-	response_t *responses;
-} service_t;
+/**
+ * parse JSON document from path
+ *
+ * @param file location
+ * @return WJElement document
+ */
 
 WJElement document_create(char *path)
 {
@@ -128,12 +180,19 @@ WJElement document_create(char *path)
 	return element;
 }
 
-int method_read(method_t *method, char *path)
+/**
+ * parse HTTP method request and response schemas
+ *
+ * @param method
+ * @param path
+ * @return error code or zero otherwise
+ */
+
+int method_parse(method_t *method, char *path)
 {
 	LOG("reading method");
 
 	char *string = NULL;
-
 	int res = -1;
 
 	res = asprintf(&string, "%s/request.json", path);
@@ -165,6 +224,13 @@ int method_read(method_t *method, char *path)
 	return EXIT_SUCCESS;
 }
 
+/**
+ * create HTTP method
+ *
+ * @param path method location
+ * @return method
+ */
+
 method_t *method_create(char *path)
 {
 	LOG("creating method %s", path);
@@ -183,7 +249,7 @@ method_t *method_create(char *path)
 		return NULL;
 	}
 
-	int res = method_read(method, path);
+	int res = method_parse(method, path);
 
 	if (!res) {
 		LOG("could not read method");
@@ -728,9 +794,6 @@ int connection_handler(void *cls, struct MHD_Connection *connection,
 		return MHD_YES;
 	}
 
-	if (!is_valid(url, method))
-		return invalid_response(connection);
-
 	if (!is_authenticated(connection, USER, PASSWORD))
 		return ask_for_authentication(connection, REALM);
 
@@ -759,8 +822,8 @@ int main(int argc, char *argv[])
 	/* what about key password? */
 
 	LOG("Creating service");
-	service_t *service = service_create(".");
-	if (!service) {
+	context.service = service_create(".");
+	if (!context.service) {
 		LOG("Could not create service");
 		free(cert);
 		free(key);
@@ -770,25 +833,22 @@ int main(int argc, char *argv[])
 	/* pre populate reusable responses */
 
 	int options = MHD_USE_EPOLL_LINUX_ONLY | MHD_USE_SSL | MHD_USE_TCP_FASTOPEN | MHD_USE_SELECT_INTERNALLY | MHD_USE_DEBUG;
-	struct MHD_Daemon *daemon = MHD_start_daemon(options, PORT,
-						     NULL, NULL, &connection_handler, service,
-						     MHD_OPTION_HTTPS_MEM_KEY, key,
-						     MHD_OPTION_HTTPS_MEM_CERT, cert,
-			     MHD_OPTION_CONNECTION_TIMEOUT, 60,
-			     MHD_OPTION_THREAD_POOL_SIZE, 32,
-			     MHD_OPTION_END);
-	if (daemon == NULL) {
+	context.daemon = MHD_start_daemon(options, PORT,
+					  NULL, NULL, &connection_handler, context.service,
+					  MHD_OPTION_HTTPS_MEM_KEY, key,
+					  MHD_OPTION_HTTPS_MEM_CERT, cert,
+					  MHD_OPTION_CONNECTION_TIMEOUT, 60,
+					  MHD_OPTION_THREAD_POOL_SIZE, 32,
+					  MHD_OPTION_END);
+	free(key);
+	free(cert);
+	
+	if (context.daemon == NULL) {
 		LOG("could not start MHD daemon");
-		free(key);
-		free(cert);
 		return EXIT_FAILURE;
 	}
 
-	MHD_stop_daemon(daemon);
-	free(key);
-	free(cert);
-
-	service_destroy(service);
-
+	getchar();
+	
 	return EXIT_SUCCESS;
 }
