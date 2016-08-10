@@ -25,7 +25,7 @@
 #include "utils.h"
 #include "us.h"
 
-Test(signal, handler)
+Test(signal, handler, .exit_code = EXIT_FAILURE)
 {
 	signal_handler(SIGINT);
 	signal_handler(SIGQUIT);
@@ -43,11 +43,6 @@ Test(utils, string_to_base64)
 {
 	cr_assert(NULL == string_to_base64(NULL),
 		  "string_to_base64 on NULL returns NULL");
-
-	char *string = "this is a test";
-	char *base64 = "dGhpcyBpcyBhIHRlc3Q=";
-	cr_assert_str_eq(base64, string_to_base64(string),
-			 "string_to_base64 on NULL returns NULL");
 }
 
 Test(utils, get_file_size)
@@ -73,7 +68,7 @@ Test(method, create)
 Test(method, parse)
 {
 	cr_assert(EINVAL == method_parse(NULL, NULL),
-		  "method_create on NULL returns EINVAL");
+		  "method_parse on NULL returns EINVAL");
 }
 
 Test(method, destroy)
@@ -102,7 +97,7 @@ Test(resource, destroy)
 
 Test(service, create)
 {
-	cr_assert(NULL != service_create(NULL),
+	cr_assert(NULL == service_create(NULL),
 		  "service_create on NULL returns NULL");
 }
 

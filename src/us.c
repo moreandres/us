@@ -140,14 +140,19 @@ typedef struct response {
 
 WJElement document_create(char *path)
 {
-	LOG("creating document %p", path);
+	LOG("%p", path);
 
+	if (-1 == access(path, R_OK)) {
+		LOG("could not access %s: %s", path, strerror(errno));
+		return NULL;
+	}
+	
 	WJElement element = NULL;
 	WJReader reader = NULL;
 	FILE *file = fopen(path, "r");
 
 	if (!file) {
-		LOG("could not open file %p", path);
+		LOG("could not open file %s", path);
 		return NULL;
 	}
 
@@ -190,8 +195,11 @@ WJElement document_create(char *path)
 
 int method_parse(method_t *method, char *path)
 {
-	LOG("reading method");
+	LOG("%p, %s", method, path);
 
+	if (!method || !path)
+		return EINVAL;
+	
 	char *string = NULL;
 	int res = -1;
 
@@ -233,8 +241,13 @@ int method_parse(method_t *method, char *path)
 
 method_t *method_create(char *path)
 {
-	LOG("creating method %s", path);
+	LOG("%s", path);
 
+	if (-1 == access(path, R_OK)) {
+		LOG("could not access %s: %s", path, strerror(errno));
+		return NULL;
+	}
+	
 	method_t *method = (method_t *) calloc(1, sizeof(method_t));
 
 	if (!method) {
@@ -265,6 +278,9 @@ int resource_read(resource_t *resource, DIR *dir)
 {
 	LOG("reading resource %p %p", resource, dir);
 
+	if (!resource || !dir)
+		return EINVAL;
+	
 	struct dirent *tmp = NULL;
 
 	while ((tmp = readdir(dir))) {
@@ -299,6 +315,9 @@ resource_t *resource_create(const char *path)
 {
 	LOG("%s", path);
 
+	if (!path)
+		return NULL;
+	
 	resource_t *resource = calloc(1, sizeof(resource_t));
 	if (!resource) {
 		LOG("Could not allocate resource: %s", strerror(errno));
@@ -429,6 +448,11 @@ service_t *service_create(const char *path)
 {
 	LOG("%s", path);
 
+	if (-1 == access(path, R_OK)) {
+		LOG("could not access %s: %s", path, strerror(errno));
+		return NULL;
+	}
+		
 	service_t *service = calloc(1, sizeof(service_t));
 	if (!service) {
 		LOG("Could not allocate service: %s", strerror(errno));
@@ -473,6 +497,9 @@ void method_destroy(method_t *method)
 {
 	LOG("%p", method);
 
+	if (!method)
+		return;
+	
 	WJECloseDocument(method->request);
 	WJECloseDocument(method->response);
 	free(method->name);
@@ -483,6 +510,9 @@ void resource_destroy(resource_t *resource)
 {
 	LOG("%p", resource);
 
+	if (!resource)
+		return;
+	
 	method_t *method = NULL;
 	method_t *tmp = NULL;
 	method_t *methods = resource->methods;
@@ -498,6 +528,9 @@ void resource_destroy(resource_t *resource)
 void service_destroy(service_t *service)
 {
 	LOG("%p", service);
+
+	if (!service)
+		return;
 	
 	resource_t *resource = NULL;
 	resource_t *tmp = NULL;
@@ -523,6 +556,9 @@ void service_destroy(service_t *service)
 char *string_to_base64(const char *message)
 {
 	LOG("%s", message);
+
+	if (!message)
+		return NULL;
 	
 	const char *lookup =
 	    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -800,7 +836,7 @@ int connection_handler(void *cls, struct MHD_Connection *connection,
 	return handle_response(connection);
 }
 
-int main(int argc, char *argv[])
+int main2(int argc, char *argv[])
 {
 	LOG("%d, %p", argc, argv);
 
