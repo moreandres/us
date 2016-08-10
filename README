@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/moreandres/us.svg?branch=master)](https://travis-ci.org/moreandres/us)
+
 us is a micro service framework using declarative json schemas
 
 us discovers resources and attributes from JSON schemas in a tree.
